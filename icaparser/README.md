@@ -16,13 +16,13 @@ See the help pages of the package for further details.
 It is recommended to create a new virtual environment with Python >= 3.9 and to install the icaparser package in that environment. Activate the environment and run:
 
 ```sh
-pip install "git+https://github.com/Bayer-Group/ica-parser.git#subdirectory=package"
+pip install "git+https://github.com/Bayer-Group/ica-parser.git#subdirectory=icaparser"
 ```
 
 If you want to install a particular develpment branch, use
 
 ```sh
-pip install "git+https://github.com/Bayer-Group/ica-parser.git@BRANCHNAME#subdirectory=package"
+pip install "git+https://github.com/Bayer-Group/ica-parser.git@BRANCHNAME#subdirectory=icaparser"
 ```
 
 If you use Jupyter notebooks, the virtual environment should be added as a new Jupyter kernel. See [Using Virtual Environments in Jupyter Notebook and Python - Parametric Thoughts](https://janakiev.com/blog/jupyter-virtual-envs/) how to do that.

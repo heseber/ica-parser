@@ -36,4 +36,4 @@ There are two options for installing _Illumina Connected Annotations_.
 
 ## ICAparser
 
-The Python package [icaparser](package/README.md) can be used to parse and filter the JSON files that are the output of _Illumina Connected Annotations_.
+The Python package [icaparser](icaparser/README.md) can be used to parse and filter the JSON files that are the output of _Illumina Connected Annotations_.
