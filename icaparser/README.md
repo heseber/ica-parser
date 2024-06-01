@@ -19,7 +19,7 @@ It is recommended to create a new virtual environment with Python >= 3.9 and to 
 pip install "git+https://github.com/Bayer-Group/ica-parser.git#subdirectory=icaparser"
 ```
 
-If you want to install a particular develpment branch, use
+If you want to install a particular development branch, use
 
 ```sh
 pip install "git+https://github.com/Bayer-Group/ica-parser.git@BRANCHNAME#subdirectory=icaparser"

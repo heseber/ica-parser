@@ -47,5 +47,5 @@ from icaparser.icaparser import (
     split_multi_sample_json_file,  # noqa: F401
 )
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 __author__ = "Henrik Seidel"

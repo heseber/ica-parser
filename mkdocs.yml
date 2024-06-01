@@ -1,0 +1,43 @@
+site_name: GENIE Python Module Documentation
+
+theme:
+  name: "material"
+  features:
+    - content.code.copy
+
+plugins:
+- search
+- mkdocstrings:
+    handlers:
+      python:
+        options:
+          show_source: false
+          docstring_section_style: list
+          docstring_options:
+            ignore_init_summary: true
+          merge_init_into_class: true
+
+
+nav:
+  - Documentation Home Page: index.md
+  - Installation: installation.md
+  - Examples: examples.md
+  - API documentation: reference.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+
+extra_css:
+  - css/custom.css
+
+extra:
+  include:
+    - images
