@@ -1,7 +1,7 @@
 #!/bin/bash
 PROJECT_BASE=`pwd`
-SETUP="$PROJECT_BASE/icaparser/setup.py"
-INIT="$PROJECT_BASE/icaparser/icaparser/__init__.py"
+SETUP="$PROJECT_BASE/setup.py"
+INIT="$PROJECT_BASE/icaparser/__init__.py"
 
 OLD_VERSION=$(grep 'version=' $SETUP | cut -d'"' -f 2)
 MAIN_VERSION=$(echo $OLD_VERSION | sed 's/\.[0-9]*$//')

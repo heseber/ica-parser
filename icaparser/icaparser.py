@@ -5,6 +5,7 @@ import json
 import os
 import re
 import warnings
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 
@@ -280,7 +281,7 @@ gene_type = pd.read_csv(
 )
 
 
-def strip_json_file(ifname, ofname):
+def strip_json_file(ifname: str, ofname: str) -> None:
     """Reduce the JSON file size by keeping only 'PASS' variants.
 
     JSON files from Illumina's ICA pipeline can be very large because they
@@ -294,11 +295,11 @@ def strip_json_file(ifname, ofname):
     file by removing all variants that do not pass Illumina's quality criteria.
 
     Args:
-        ifname: name of the  input file
-        ofname: name of the output file
+        ifname: name of the input file.
+        ofname: name of the output file.
 
     Returns:
-        Nothing
+        None.
     """
     if ifname == ofname:
         raise ValueError("ifname and ofname must be different")
@@ -359,7 +360,9 @@ def strip_json_file(ifname, ofname):
                         is_first_gene_line = False
 
 
-def strip_json_files(source_dir, target_dir, pattern="*.json.gz"):
+def strip_json_files(
+    source_dir: str, target_dir: str, pattern: str = "*.json.gz"
+) -> None:
     """Strip all JSON files of a project by keeping only 'PASS' variants.
 
     JSON files from Illumina's ICA pipeline can be very large because they
@@ -374,17 +377,17 @@ def strip_json_files(source_dir, target_dir, pattern="*.json.gz"):
     keeping only variants that PASS Illumina's quality criteria is created. The
     output file has the same name as the input file. The directory structure
     below `source_dir` is replicated in `target_dir`. Output files get the
-    suffix '_filtered.json.gz'.‚
+    suffix '_filtered.json.gz'.
 
     Args:
-        source_dir: directory where to search for input JSON files
-        target_dir: directory where to save the stripped outpout JSON files
-        file_pattern: files matching this pattern will be processed
+        source_dir: directory where to search for input JSON files.
+        target_dir: directory where to save the stripped outpout JSON files.
+        pattern: files matching this pattern will be processed.
 
     Returns:
-        Nothing
+        None.
 
-    Example:
+    Examples:
         >>> strip_json_files('../Data/Original', '../Data/Derived')
     """
     source_dir = Path(source_dir).absolute()
@@ -399,7 +402,9 @@ def strip_json_files(source_dir, target_dir, pattern="*.json.gz"):
         strip_json_file(ifname, ofname)
 
 
-def get_dna_json_files(base_dir, pattern="*MergedVariants_Annotated_filtered.json.gz"):
+def get_dna_json_files(
+    base_dir: str, pattern: str = "*MergedVariants_Annotated_filtered.json.gz"
+) -> list:
     """Find DNA annotation JSON files in or below `base_dir`.
 
     Searches for ICA DNA annotation JSON files in and below `base_dir`.
@@ -407,25 +412,25 @@ def get_dna_json_files(base_dir, pattern="*MergedVariants_Annotated_filtered.jso
 
     Args:
         base_dir: base directory of directory subtree where to search
-                  for DNA annotation JSON files
-        pattern:  files names matching this pattern are returned
+                  for DNA annotation JSON files.
+        pattern:  files names matching this pattern are returned.
 
     Returns:
-        A list of file names
+        file names.
     """
     files = [x.as_posix() for x in Path(base_dir).rglob(pattern)]
     files = sorted(files)
     return files
 
 
-def get_header(file):
+def get_header(file: str) -> dict:
     """Extract the header element from a ICA JSON file.
 
     Args:
-        file: name of the ICA JSON file
+        file: name of the ICA JSON file.
 
     Returns:
-        A dictionary with the header from the JSON file
+        header from the JSON file.
     """
     with gzip.open(file, "rt") as f:
         line = next(f)
@@ -435,16 +440,16 @@ def get_header(file):
     return header
 
 
-def get_sample(file, suffix="(-D[^.]*)?\\.bam"):
+def get_sample(file: str, suffix: str = "(-D[^.]*)?\\.bam") -> str:
     """Extract the sample name from a ICA JSON file.
 
     Args:
-        file: name of the ICA JSON file
+        file: name of the ICA JSON file.
         suffix: regular expression to remove from the sample name in the JSON
             file. Defaults to '(-D[^.]*)?\\.bam'.
 
     Returns:
-        A string with the name of the sample annotated in the JSON file
+        name of the sample annotated in the JSON file.
     """
     header = get_header(file)
     sample = header["samples"][0]
@@ -452,14 +457,14 @@ def get_sample(file, suffix="(-D[^.]*)?\\.bam"):
     return sample
 
 
-def get_header_scalars(file):
+def get_header_scalars(file: str) -> pd.DataFrame:
     """Extract a table with all scalar attributes from the JSON header.
 
     Args:
-        file: name of the ICA JSON file
+        file: name of the ICA JSON file.
 
     Returns:
-        A pandas.DataFrame
+        table of scalar attributes and their values.
     """
     header = get_header(file)
     sample = get_sample(file)
@@ -468,28 +473,28 @@ def get_header_scalars(file):
     return df
 
 
-def get_data_sources(file):
+def get_data_sources(file: str) -> pd.DataFrame:
     """Extract a table with annotation data sources from the JSON header.
 
     Args:
-        file: name of the ICA JSON file
+        file: name of the ICA JSON file.
 
     Returns:
-        A pandas.DataFrame
+        table with annotation data sources and their versions.
     """
     header = get_header(file)
     df = pd.DataFrame(header["dataSources"])
     return df
 
 
-def get_pipeline_metadata(files):
+def get_pipeline_metadata(files: list) -> pd.DataFrame:
     """Extract a table with metadata annotation pipeline run from the JSON header.
 
     Args:
-        file: name of the ICA JSON file
+        files: names of the ICA JSON files.
 
     Returns:
-        A pandas.DataFrame
+        table with metadata of pipeline runs.
     """
     df = get_header_scalars(files[0])
     for fname in files[1:]:
@@ -499,17 +504,17 @@ def get_pipeline_metadata(files):
     return df
 
 
-def _get_branch(file, key):
+def _get_branch(file: str, key: str) -> list:
     """Extract a subsection (branch) of the ICA JSON file.
 
     This is a helper function which is not supposed to be used by the end user.
 
     Args:
-        file: name of the ICA JSON file
-        key:  name of the top level element to extract (`positions` or `genes`)
+        file: name of the ICA JSON file.
+        key:  name of the top level element to extract (`positions` or `genes`).
 
     Returns:
-        A list.
+        list of positions or genes.
 
     """
     with gzip.open(file, "rt") as f:
@@ -520,7 +525,7 @@ def _get_branch(file, key):
         return list()
 
 
-def cleanup_cosmic(positions):
+def cleanup_cosmic(positions: list) -> list:
     """Remove Cosmic entries with alleles not matching the variant alleles.
 
     ICA attaches Cosmic entries to variants based on position only, which
@@ -531,10 +536,10 @@ def cleanup_cosmic(positions):
     Filtering is done in place.
 
     Args:
-        positions: list of positions to clean up
+        positions: list of positions to clean up.
 
     Returns:
-        A list of positions with cleaned up Cosmic entries
+        list of positions with cleaned up Cosmic entries.
     """
     for p in positions:
         for v in p["variants"]:
@@ -552,7 +557,9 @@ def cleanup_cosmic(positions):
     return positions
 
 
-def get_positions(file, variant_filters=[], transcript_filters=[]):
+def get_positions(
+    file: str, variant_filters: list = [], transcript_filters: list = []
+) -> list:
     """Extract all positions from a ICA JSON file.
 
     The sample id is stored as an additional new attribute of the
@@ -567,7 +574,7 @@ def get_positions(file, variant_filters=[], transcript_filters=[]):
                 Filters shall return True to keep a transcript.
 
     Returns:
-        A list
+        filtered positions from file.
 
     Examples:
         >>> transcript_filters = [
@@ -592,7 +599,7 @@ def get_positions(file, variant_filters=[], transcript_filters=[]):
     return positions
 
 
-def get_multi_sample_positions(files, *args, **kwargs):
+def get_multi_sample_positions(files: list, *args: object, **kwargs: object) -> list:
     """Extract all positions for a set of ICA JSON files.
 
     The sample id is stored as an additional new attribute of the
@@ -600,12 +607,12 @@ def get_multi_sample_positions(files, *args, **kwargs):
     although ICA usually only creates single sample JSON files.
 
     Args:
-        files: names of the ICA JSON files
-        args: extra arguments forwarded to get_positions()
-        kwargs: extra named arguments forwarded to get_positions()
+        files: names of the ICA JSON files.
+        args: extra arguments forwarded to get_positions().
+        kwargs: extra named arguments forwarded to get_positions().
 
     Returns:
-        A list
+        filtered positions from all files.
 
     Examples:
         >>> import icaparser as icap
@@ -618,31 +625,33 @@ def get_multi_sample_positions(files, *args, **kwargs):
     return positions
 
 
-def get_genes(file):
+def get_genes(file: str) -> list:
     """Extract gene annotation from a ICA JSON file.
 
     The `genes` section of ICA JSON files is optional. If this section
     is not included in the file, an empty list is returned.
 
     Args:
-        file: name of the ICA JSON file
+        file: name of the ICA JSON file.
 
     Returns:
-        A list
+        gene annotations.
     """
     return _get_branch(file, "genes")
 
 
-def get_position_by_coordinates(positions, chromosome, position):
+def get_position_by_coordinates(
+    positions: list, chromosome: str, position: int
+) -> dict:
     """Extract a particular position from a position list.
 
     Args:
-        positions: a list of positions
-        chromosome: name of the chromosome
-        position: numeric posion on the chromosome
+        positions: list of input positions.
+        chromosome: name of the chromosome.
+        position: numeric position on the chromosome.
 
     Returns:
-        A dict
+        the position for the specified chromosome and numeric position.
 
     Examples:
         >>> import icaparser as icap
@@ -655,21 +664,22 @@ def get_position_by_coordinates(positions, chromosome, position):
     return list(filter(filter_func, positions))[0]
 
 
-def get_max_af(variant, source, cohorts=None):
+def get_max_af(variant: dict, source: str, cohorts: list = None) -> float:
     """Get the maximum allele frequency for a particular annotation source.
 
     Get the maximum allele frequency across all cohorts annotated by the
     annotation source.
 
     Args:
-        variant: the variant to investigate
-        source: the annotation source to use
-        cohorts: subpopulations to include; include all if cohorts == None
+        variant: the variant to investigate.
+        source: the annotation source to use, for example 'gnomad' or
+            'gnomadExome' or 'oneKg'.
+        cohorts: subpopulations to include; include all if None.
 
     Returns:
-        A float
+        the maximum allele frequency.
 
-    Example:
+    Examples:
         >>> import icaparser as icap
         >>> icap.get_max_af(variant, 'gnomad')
     """
@@ -683,7 +693,9 @@ def get_max_af(variant, source, cohorts=None):
     return max_af
 
 
-def get_gnomad_max_af(variant, cohorts=["afr", "amr", "eas", "nfe", "sas"]):
+def get_gnomad_max_af(
+    variant: dict, cohorts: list = ["afr", "amr", "eas", "nfe", "sas"]
+) -> float:
     """Get the maximum allele frequency for gnomAD.
 
     Get the maximum allele frequences across all major cohorts annotated
@@ -691,17 +703,18 @@ def get_gnomad_max_af(variant, cohorts=["afr", "amr", "eas", "nfe", "sas"]):
     and _other_.
 
     Args:
-        variant: the variant to investigate
-        cohorts: subpopulations to include
+        variant: the variant to investigate.
+        cohorts: subpopulations to include.
 
     Returns:
-        A float
+        maximum GnomAD allele frequency.
     """
-
     return get_max_af(variant, "gnomad", cohorts)
 
 
-def get_gnomad_exome_max_af(variant, cohorts=["afr", "amr", "eas", "nfe", "sas"]):
+def get_gnomad_exome_max_af(
+    variant: dict, cohorts: list = ["afr", "amr", "eas", "nfe", "sas"]
+) -> float:
     """Get the maximum allele frequency for gnomAD Exome.
 
     Get the maximum allele frequences across all major cohorts annotated
@@ -709,42 +722,44 @@ def get_gnomad_exome_max_af(variant, cohorts=["afr", "amr", "eas", "nfe", "sas"]
     Finish) and _other_.
 
     Args:
-        variant: the variant to investigate
-        cohorts: subpopulations to include
+        variant: the variant to investigate.
+        cohorts: subpopulations to include.
 
     Returns:
-        A float
+        maximum GnomAD Exome allele frequency.
     """
     return get_max_af(variant, "gnomadExome", cohorts)
 
 
-def get_onekg_max_af(variant):
+def get_onekg_max_af(variant: dict) -> float:
     """Get the maximum allele frequency for the 1000 Genomes Project.
 
     Get the maximum allele frequences across all cohorts annotated
     by the 1000 Genomes Project.
 
     Args:
-        variant: the variant to investigate
+        variant: the variant to investigate.
 
     Returns:
-        A float
+        maximum 1000 genomes allele frequency.
     """
     return get_max_af(variant, "oneKg")
 
 
-def get_cosmic_max_sample_count(variant, only_allele_specific=True):
+def get_cosmic_max_sample_count(
+    variant: dict, only_allele_specific: bool = True
+) -> int:
     """Get the maximum sample count for all Cosmic annotations of a variant.
 
     A variant can have no, one or multiple associated Cosmic identifiers. This
-    function returns the maximum sample count of all Cosmic identifers. For each
-    Cosmic identifiers, sample numbers are summed up across all indications.
+    function returns the maximum sample count of all Cosmic identifiers. For
+    each Cosmic identifier, sample numbers are summed up across all indications.
     Returns 0 if no Cosmic identifier exists for this variant.
 
     The 'only_allele_specific' argument is used to exclude Cosmic entries that
     annotate the same chromosomal location but an allele that is different from
-    the allele of the annotated variant. ICA annotates a variant with all
-    Cosmic entries for that chromosomal location, irrespective of alleles. When
+    the allele of the annotated variant. ICA annotates a variant with all Cosmic
+    entries for that chromosomal location, irrespective of alleles. When
     counting Cosmic samples, this leads to an overestimation of Cosmic sample
     counts for a particular variant. Therefore, 'only_allele_specific' is True
     by default to count only samples from Cosmic entries with matching alleles.
@@ -765,7 +780,7 @@ def get_cosmic_max_sample_count(variant, only_allele_specific=True):
                               matching the allele of the annotated variant
 
     Returns:
-        An integer
+        maximum cosmic sample count
     """
     max_count = 0
     for cosmic_entry in variant.get("cosmic", []):
@@ -776,16 +791,16 @@ def get_cosmic_max_sample_count(variant, only_allele_specific=True):
 
 
 def get_clinvar_max_significance(
-    variant, ordered_significances=_CLINVAR_ORDERED_SIGNIFICANCES
-):
+    variant: dict, ordered_significances: list = _CLINVAR_ORDERED_SIGNIFICANCES
+) -> str:
     """Get the maximum signifinance for all ClinVar annotations of a variant.
 
     Args:
-        variant: the variant to investigate
-        ordered_significances: ranked order of ClinVar significances
+        variant: the variant to investigate.
+        ordered_significances: ranked order of ClinVar significances.
 
     Returns:
-        A string
+        ClinVar significance of highest rank for the variant.
     """
     if "clinvar" not in variant:
         return "none"
@@ -805,18 +820,20 @@ def get_clinvar_max_significance(
     return max_significance
 
 
-def common_variant_filter(variant, max_af=0.01):
+def common_variant_filter(variant: dict, max_af: float = 0.001) -> bool:
     """Get a variant filter based on GnomAD, GnomAd Exome, and 1000 Genomes.
 
-    Returns True if none of the maximum allele frequencies from GnomAD,
-    GnomAD Exome and 1000 Genomes is larger than `max_af`.
+    Returns True if none of the maximum allele frequencies from GnomAD, GnomAD
+    exomes and 1000 genomes is greater than `max_af`. The default value of 0.1 %
+    for the maximum allele frequency corresponds to that of the AACR GENIE
+    project.
 
     Args:
-        variant: the variant to investigate
-        max_af: the mixum allele frequences threshold
+        variant: the variant to investigate.
+        max_af: the maximum allele frequency threshold.
 
     Returns:
-        A bool
+        True if this is not a common variant.
     """
     passed = (
         get_gnomad_max_af(variant) <= max_af
@@ -826,18 +843,19 @@ def common_variant_filter(variant, max_af=0.01):
     return passed
 
 
-def _filter_items(items, filter_func, sub_items_name):
+def _filter_items(
+    items: list, filter_func: Callable[[dict], bool], sub_items_name: str
+) -> list:
     """Filter items based on a filter for subitems.
 
     Args:
-        items: list of items to filter
-        filter_func: function returning a bool for each sub item
+        items: list of items to filter.
+        filter_func: function returning a bool for each sub item.
         sub_items_name: each item is a dict, and this is the key
-                        in this item dict for which the values
-                        are a list of sub items
+            in this item dict for which the values are a list of sub items
 
     Returns:
-        A list
+        filtered items.
     """
     filtered_items = []
     for item in items:
@@ -852,7 +870,9 @@ def _filter_items(items, filter_func, sub_items_name):
     return filtered_items
 
 
-def filter_positions_by_variants(positions, filter_func):
+def filter_positions_by_variants(
+    positions: list, filter_func: Callable[[dict], bool]
+) -> list:
     """Filter positions based on a filter function for variants.
 
     Apply a filter function to all variants of each position.
@@ -861,16 +881,16 @@ def filter_positions_by_variants(positions, filter_func):
     from the returned list.
 
     Args:
-        positions: list of positions to filter
+        positions: list of positions to filter.
         filter_func: function taking a variant and returning a bool.
-                     True means to keep the variant.
+            True means to keep the variant.
 
     Returns:
-        A list
+        filtered positions.
 
-    Example:
+    Examples:
         >>> import icaparser as icap
-        >>> ax_af = 0.01
+        >>> max_af = 0.001
         >>> is_not_common_variant = lambda x: icap.common_variant_filter(x, max_af)
         >>> non_common_positions = icap.filter_positions_by_variants(
                 positions,
@@ -880,7 +900,9 @@ def filter_positions_by_variants(positions, filter_func):
     return _filter_items(positions, filter_func, "variants")
 
 
-def filter_variants_by_transcripts(variants, filter_func):
+def filter_variants_by_transcripts(
+    variants: list, filter_func: Callable[[dict], bool]
+) -> list:
     """Filter variants based on a filter function for transcripts.
 
     Apply a filter function to all transcripts of each variant.
@@ -889,33 +911,35 @@ def filter_variants_by_transcripts(variants, filter_func):
     from the returned list.
 
     Args:
-        variants: list of variants to filter
+        variants: list of variants to filter.
         filter_func: function taking a transcript and returning a bool.
-                     True means to keep the transcript.
+            True means to keep the transcript.
 
     Returns:
-        A list
+        filtered variants.
     """
     return _filter_items(variants, filter_func, "transcripts")
 
 
-def filter_positions_by_transcripts(positions, filter_func):
+def filter_positions_by_transcripts(
+    positions: list, filter_func: Callable[[dict], bool]
+) -> list:
     """Filter positions based on a filter function for transcripts.
 
-    Apply a filter function to all transcripts of each position.
-    Transcripts not passing the filter are removed from a position.
-    Positions without any transcripts passing the filter are removed
-    from the returned list.
+    Apply a filter function to all transcripts of each position. Transcripts not
+    passing the filter are removed from the variants of a position. Variants
+    without any transcript left are removed from a position. Positions without
+    any variants left are removed from the returned list of positions.
 
     Args:
-        positions: list of positions to filter
+        positions: list of positions to filter.
         filter_func: function taking a transcript and returning a bool.
-                     True means to keep the transcript.
+            True means to keep the transcript.
 
     Returns:
-        A list
+        filtered positions.
 
-    Example:
+    Examples:
         >>> is_canonical_transcript = lambda x: x.get('isCanonical', False)
         >>> canonical_positions = icap.filter_positions_by_transcripts(
                 non_common_positions,
@@ -933,32 +957,33 @@ def filter_positions_by_transcripts(positions, filter_func):
     return filtered_positions
 
 
-def get_clinvar(variant):
+def get_clinvar(variant: dict) -> pd.DataFrame:
     """Get a table of all ClinVar annotations for a variant.
 
     Args:
-        variant: the variant to investigate
+        variant: the variant to investigate.
 
     Returns:
-        A pandas.DataFrame
+        table with ClinVar annotations.
     """
     if "clinvar" not in variant:
         return pd.DataFrame()
     return pd.DataFrame(variant["clinvar"])
 
 
-def get_biotype_priority(biotype):
+def get_biotype_priority(biotype: str) -> int:
     """Get the numeric priority of a biotype.
 
-    The numeric priority of a biotype that is returned by this function
-    is the same as defined by https://github.com/mskcc/vcf2maf/blob/master/vcf2maf.pl.
-    Biotypes are 'protein_coding', 'LRG_gene', ,'miRNA', ...
+    The numeric priority of a biotype that is returned by this function is the
+    same as defined by [vcf2maf.pl by MSKCC](
+    https://github.com/mskcc/vcf2maf/blob/master/vcf2maf.pl ). Biotypes are
+    'protein_coding', 'LRG_gene', ,'miRNA', ...
 
     Args:
-        biotype: a string with a single biotype
+        biotype: the biotype for which the priority is to be returned.
 
     Returns:
-        An integer, smaller values mean higher priority
+        the priority, smaller values mean higher priority.
 
     """
     lowest_prio = max(_BIOTYPE_PRIORITY.values())
@@ -973,66 +998,70 @@ def get_biotype_priority(biotype):
     return _BIOTYPE_PRIORITY.get(biotype, lowest_prio)
 
 
-def get_consequences(transcript):
-    """Get a list of consequences for a transcript
+def get_consequences(transcript: dict) -> list:
+    """Get a list of consequences for a transcript.
 
-    A list of consequences for a transcript is returned. If any of the annotated
-    consequences is a combination if single consequences, separated by
-    ampersands ('&') or commas, such a consequence is split into single consequences.
+    A list of consequences of a variant for a transcript is returned. If any of
+    the annotated consequences is a combination of single consequences,
+    separated by ampersands (&) or commas, the consequence is split into
+    single consequences.
 
     Args:
-        transcript: the transcript to get the consequences for
+        transcript: the transcript for which the consequences are to be returned.
 
     Returns:
-        A list of strings
+        the consequences, a list of strings.
     """
     consequences = transcript.get("consequence", [])
     consequences = [x for c in consequences for x in re.split("&,", c)]
     return consequences
 
 
-def get_vep_rank_for_consequence(consequence):
+def get_vep_rank_for_consequence(consequence: str) -> int:
     """Get the numeric rank of a VEP consequence term.
 
-    The numeric rank of a consequence that is the position of the consequence
-    in this list of consequences at https://www.ensembl.org/info/genome/variation/prediction/predicted_data.html
+    The numeric rank of a consequence is the position of the consequence in this
+    [list of consequences for the Variant Effect Predictor VEP](
+    https://www.ensembl.org/info/genome/variation/prediction/predicted_data.html
+    ).
 
     Args:
-        consequence: the consequence term of the mutation
+        consequence: the consequence term of the variant.
 
     Returns:
-        An integer
+        the rank of the consequence, smaller values mean higher rank.
     """
     if consequence not in vep_csq.index:
         return vep_csq["rank"].max() + 1
     return vep_csq.loc[consequence, "rank"]
 
 
-def get_vep_priority_for_consequence(consequence):
+def get_vep_priority_for_consequence(consequence: str):
     """Get the numeric priority of a VEP consequence term.
 
-      The numeric priority of a consequence that is returned by this function
-      is the same as defined by https://github.com/mskcc/vcf2maf/blob/master/vcf2maf.pl.
+      The numeric priority of a consequence that is returned by this function is
+      the same as defined by [vcf2maf.pl of MSKCC](
+      https://github.com/mskcc/vcf2maf/blob/master/vcf2maf.pl ).
 
     Args:
-          consequence: the consequence term of the mutation
+          consequence: the consequence term of the variant.
 
       Returns:
-          An integer
+          the priority of the consequence, smaller values mean higher priority.
     """
     if consequence not in vep_csq.index:
         return vep_csq["priority"].max() + 1
     return vep_csq.loc[consequence, "priority"]
 
 
-def get_vep_consequence_for_rank(rank):
+def get_vep_consequence_for_rank(rank: int) -> str:
     """Get the VEP consequence term of a numeric rank.
 
     Args:
-        rank: the numeric rank of the consequence term
+        rank: the numeric rank of the consequence term.
 
     Returns:
-        A string
+        the consequence.
     """
     if rank > vep_csq.shape[0]:
         return "unknown"
@@ -1040,32 +1069,32 @@ def get_vep_consequence_for_rank(rank):
         return list(vep_csq[vep_csq["rank"] == rank].index)[0]
 
 
-def get_strongest_vep_consequence_rank(transcript):
+def get_strongest_vep_consequence_rank(transcript: dict) -> int:
     """Get the strongest rank of VEP consequences for a transcript.
 
-    Get the strongest numeric rank of all VEP consequences
-    for a transcript. Smaller ranks mean stronger impact.
+    Get the strongest numeric rank of all VEP consequences for a transcript.
+    Smaller ranks mean stronger impact.
 
-    The priority of consequences is taken into account first. So if
-    two consequences have different priorities, the consequence with
-    the higher priority (lower priority number) will be used, and the
-    rank for this consequence will be returned. If there are multiple
-    consequences with the same priority, the lowest (strongest) rank
-    will be returned.
+    The priority of consequences is taken into account first. So if two
+    consequences have different priorities, the consequence with the higher
+    priority (lower priority number) will be used, and the rank for this
+    consequence will be returned. If there are multiple consequences with the
+    same priority, the lowest (strongest) rank will be returned.
 
-    For clarification: ranks are unique, i.e. all VEP consequences
-    ordered as listed on the VEP documentation page get the row number
-    of this table assigned as rank.
+    For clarification: ranks are unique, i.e. all VEP consequences ordered as
+    listed on the VEP documentation page get the row number of this table
+    assigned as rank.
 
-    However, several consequences can have the same priority (e.g., stop
-    gained and frameshift have the same priority). Priorities are copied
-    from vcf2maf.pl.
+    However, several consequences can have the same priority (e.g., stop gained
+    and frameshift have the same priority). Priorities are copied from
+    [vcf2maf.pl of MSKCC](
+    https://github.com/mskcc/vcf2maf/blob/master/vcf2maf.pl ).
 
     Args:
-        transcript: the transcript to investigate
+        transcript: the transcript to investigate.
 
     Returns:
-        An integer
+        the rank of the VEP consequence with strongest impact.
     """
     if "consequence" not in transcript:
         return vep_csq["rank"].max() + 1
@@ -1076,17 +1105,17 @@ def get_strongest_vep_consequence_rank(transcript):
     return min_rank
 
 
-def get_strongest_vep_consequence_priority(transcript):
+def get_strongest_vep_consequence_priority(transcript: dict) -> int:
     """Get the strongest priority of VEP consequence for a transcript.
 
     Get the strongest numeric priority of all VEP consequences
     for a transcript. Smaller numeric priorities mean stronger impact.
 
     Args:
-        transcript: the transcript to investigate
+        transcript: the transcript to investigate.
 
     Returns:
-        An integer
+        the strongest numeric priority, smaller values mean higher priority.
     """
     if "consequence" not in transcript:
         return vep_csq["priority"].max() + 1
@@ -1095,27 +1124,27 @@ def get_strongest_vep_consequence_priority(transcript):
     return min_prio
 
 
-def get_strongest_vep_consequence_name(transcript):
+def get_strongest_vep_consequence_name(transcript: dict) -> str:
     """Get the name of the strongest VEP consequence for a transcript.
 
     Args:
-        transcript: the transcript to investigate
+        transcript: the transcript to investigate.
 
     Returns:
-        A string
+        the consequence.
     """
     rank = get_strongest_vep_consequence_rank(transcript)
     return get_vep_consequence_for_rank(rank)
 
 
-def get_gene_type(gene_symbol):
+def get_gene_type(gene_symbol: str) -> str:
     """Get the gene type (oncogene, tsg, mixed) for a gene.
 
     Args:
-        gene_symbol: the gene symbol of the gene
+        gene_symbol: the gene symbol of the gene.
 
     Returns:
-        a string
+        the gene type.
     """
     if gene_symbol in gene_type.index:
         return gene_type.loc[gene_symbol, "gene_type"]
@@ -1123,17 +1152,17 @@ def get_gene_type(gene_symbol):
         return ""
 
 
-def get_mutation_table_for_position(position):
-    """Get an annotated table of all transcripts.
+def get_mutation_table_for_position(position: dict) -> pd.DataFrame:
+    """Get an annotated table of all transcripts for a single position.
 
     Returns an annotated table of all transcripts that are affected
     by a mutation at a position.
 
     Args:
-        position: the position to investigate
+        position: the position to investigate.
 
     Returns:
-        A pandas.DataFrame
+        table of annotated mutations and affected transcripts.
     """
     vep_csq_categories = list(vep_csq.index)
     vep_csq_categories.reverse()
@@ -1188,17 +1217,19 @@ def get_mutation_table_for_position(position):
     return df
 
 
-def get_mutation_table_for_positions(positions, hide_progress=False):
+def get_mutation_table_for_positions(
+    positions: list, hide_progress: bool = False
+) -> pd.DataFrame:
     """Get an annotated table of all transcripts for all positions.
 
     Returns an annotated table of all transcripts that are affected
-    by a mutation at any of the position.
+    by a mutation at any of the positions.
 
     Args:
-        positions: the positions to investigate
+        positions: the positions to investigate.
 
     Returns:
-        A pandas.DataFrame
+        table of annotated mutations and affected transcripts.
     """
 
     if len(positions) == 0:
@@ -1213,27 +1244,30 @@ def get_mutation_table_for_positions(positions, hide_progress=False):
 
 
 def _get_mutation_table_for_single_file(
-    file,
-    max_af=0.01,
-    min_vep_consequence_priority=6,
-    min_cosmic_sample_count=0,
-    only_canonical=False,
-    extra_variant_filters=[],
-    extra_transcript_filters=[],
-):
+    file: str,
+    max_af: float = 0.001,
+    min_vep_consequence_priority: int = 6,
+    min_cosmic_sample_count: int = 0,
+    only_canonical: bool = False,
+    extra_variant_filters: list = [],
+    extra_transcript_filters: list = [],
+) -> pd.DataFrame:
     """Get an annotated table of all filtered transcripts from a ICA JSON file.
 
-    Load all positions from a ICA JSON file and filter them. Positions having
-    any remaining variants and transcripts passing the filter are returned as an
-    annotated table.
+    Load all positions from a single ICA JSON file and filter them. Positions
+    having any remaining variants and transcripts passing the filter are
+    returned as an annotated table.
 
     Args:
-        file:   a ICA JSON file
+        file:   an ICA JSON file
         max_af: maximum allele frequency for gnomAD, gnomAD Exome and 1000 Genomes.
                 Only variants with maximum allele frequencies below this threshold
                 will be returned.
         min_vep_consequence_priority: only transcripts with a minimum VEP
-                consequence priority not larger than this threshold will be retained
+                consequence priority not larger than this threshold will be retained.
+                Consequences with priorities <= 6 change the protein sequence,
+                consequences with priorities > 6 do not change the protein
+                sequence.
         min_cosmic_sample_count: only variants with a maximum cosmic sample count
                 not lower than this threshold will be retained
         only_canonical: if true, only canonical transcripts will be retained
@@ -1243,7 +1277,7 @@ def _get_mutation_table_for_single_file(
                 Filters shall return True to keep a transcript.
 
     Returns:
-        A pandas.DataFrame
+        table of annotated mutations and affected transcripts.
 
     Examples:
         >>> import icaparser as icap
@@ -1304,14 +1338,14 @@ def _get_mutation_table_for_single_file(
 
 
 def get_mutation_table_for_files(
-    json_files,
-    max_af=0.01,
-    min_vep_consequence_priority=6,
-    min_cosmic_sample_count=0,
-    only_canonical=False,
-    extra_variant_filters=[],
-    extra_transcript_filters=[],
-):
+    json_files: list,
+    max_af: float = 0.001,
+    min_vep_consequence_priority: int = 6,
+    min_cosmic_sample_count: int = 0,
+    only_canonical: bool = False,
+    extra_variant_filters: list = [],
+    extra_transcript_filters: list = [],
+) -> pd.DataFrame:
     """Get an annotated table of all filtered transcripts from a list of ICA JSON files.
 
     Load all positions from a list of ICA JSON files and filter them.
@@ -1319,12 +1353,15 @@ def get_mutation_table_for_files(
     are returned as an annotated table.
 
     Args:
-        files:  list of ICA JSON files
+        json_files: list of ICA JSON files
         max_af: maximum allele frequency for gnomAD, gnomAD Exome and 1000 Genomes.
                 Only variants with maximum allele frequencies below this threshold
                 will be returned.
         min_vep_consequence_priority: only transcripts with a minimum VEP
-                consequence priority not larger than this threshold will be retained
+                consequence priority not larger than this threshold will be retained.
+                Consequences with priorities <= 6 change the protein sequence,
+                consequences with priorities > 6 do not change the protein
+                sequence.
         min_cosmic_sample_count: only variants with a maximum cosmic sample count
                 not lower than this threshold will be retained
         only_canonical: if true, only canonical transcripts will be retained
@@ -1334,7 +1371,7 @@ def get_mutation_table_for_files(
                 Filters shall return True to keep a transcript.
 
     Returns:
-        A pandas.DataFrame
+        table of annotated mutations and affected transcripts.
 
     Examples:
         >>> import icaparser as icap
@@ -1377,14 +1414,20 @@ def get_mutation_table_for_files(
     return df
 
 
-def explode_consequence(mutation_table, inplace=False):
+def explode_consequence(
+    mutation_table: pd.DataFrame, inplace: bool = False
+) -> pd.DataFrame:
     """Explode the VEP consequence column of a mutation table.
 
-    Exploding the VEP consequence column with the standard Pandas
-    `explode()` function would return consquences as strings, not as
-    ordered categories. This function will instead return a consequence
-    columns which is an ordered category. The categories are ordered by
-    their impact.
+    Exploding the VEP consequence column with the standard Pandas `explode()`
+    function would return consquences as strings, not as ordered categories.
+    This function will instead return a consequence column which is an ordered
+    category. The categories are ordered by their impact.
+
+    Exploding means that if a row of the input table has multiple consequences
+    in the consequence column, the list of consequences will be split into
+    single consequences and the output table will have multiple rows with a
+    single consequence per row.
 
     Args:
         mutation_table: the mutation table to explode
@@ -1392,7 +1435,7 @@ def explode_consequence(mutation_table, inplace=False):
             of returning a new object
 
     Returns:
-        A pandas.DataFrame
+        new mutation table with exploded consequences.
 
     Examples:
         >>> import icaparser as icap
@@ -1411,7 +1454,7 @@ def explode_consequence(mutation_table, inplace=False):
     return mutation_table
 
 
-def add_gene_types(positions):
+def add_gene_types(positions: list) -> list:
     """Adds the gene type to each transcript.
 
     Transcripts will be annotated with the gene type (*oncogene*, *tsg*,
@@ -1420,10 +1463,10 @@ def add_gene_types(positions):
     transcripts will not get the `geneType` attribute.
 
     Args:
-        positions: list of filtered or unfiltered positions from JSON files
+        positions: list of filtered or unfiltered positions from JSON files.
 
     Returns:
-        A list of positions with additional annotation of transcripts
+        list of positions with additional annotation of transcripts.
 
     Examples:
         >>> import icaparser as icap
@@ -1439,7 +1482,7 @@ def add_gene_types(positions):
     return positions
 
 
-def get_default_gene_type_map():
+def get_default_gene_type_map() -> dict:
     """Returns the default gene type map.
 
     The canonical gene types are `gof`, `lof`, and the union of both.
@@ -1463,7 +1506,7 @@ def get_default_gene_type_map():
     - `ambiguous` → `{"gof", "lof"}`
 
     Returns:
-        A dictionary with mappings from gene types to canonical gene types
+        mappings from gene types to canonical gene types.
 
     Examples:
         >>> import icaparser as icap
@@ -1483,17 +1526,59 @@ def get_default_gene_type_map():
     return gene_type_map
 
 
-def get_default_mutation_classification_rules(cosmic_threshold=10):
+def get_default_mutation_classification_rules(cosmic_threshold: int = 10) -> dict:
     """Returns the default rules for classifying mutations.
 
-    Defines the default rules for classifying mutations. The returned dictonary
-    has keys "gof" and "lof", and the respective values are the rule sets for
-    these gene types. A rule set is again a dictionary with the keys "mutated"
-    and "uncertain". The values for "mutated" or "uncertain" are dictionaries
-    with three filter functions, a "position_filter", a "variant_filter", and
-    a "transcript filter". For example, a transcript will be called "mutated"
-    if all three filters for "mutated" return True, and it will be called
-    "uncertain", if all three filter functions for "uncertain" return True.
+     Defines the default rules for classifying mutations. The returned dictionary
+     has keys "gof" and "lof", and the respective values are the rule sets for
+     these gene types. Each rule set is a dictionary with the keys "mutated" and
+     "uncertain". The values for "mutated" or "uncertain" are dictionaries with
+     three filter functions, a "position_filter", a "variant_filter", and a
+     "transcript_filter". For example, a transcript will be called "mutated" if
+     all three filters for "mutated" return True, and it will be called
+     "uncertain", if all three filter functions for "uncertain" return True.
+
+     These are the default rules returned by this function:
+
+    **GOF**
+
+    *mutated:* non-deleterious hotspot mutations.
+
+    - position_filter: all positions retained (no restrictions by position).
+    - variant_filter: keep only hotspot variants with a Cosmic sample count >=
+        `cosmic_threshold`.
+    - transcript_filter: keep only amino acid sequence modifying variants that
+        are not most likely deleterious. This includes missense mutations and
+        in-frame insertions and deletions.
+
+    *uncertain:* non-deleterious mutations that aren't hotspots.
+
+    - position_filter: all positions retained (no restrictions by position).
+    - variant_filter: keep only non-hotspot variants with a Cosmic sample count <
+        `cosmic_threshold`.
+    - transcript_filter: keep only amino acid sequence modifying variants that
+        are not most likely deleterious. This includes missense mutations and
+        in-frame insertions and deletions.
+
+    **LOF**
+
+    *mutated:* deleterious mutations (such as truncations, start or stop codon
+    loss).
+
+    - position_filter: all positions retained (no restrictions by position).
+    - variant_filter: all variants retained (no restrictions by variant).
+    - transcript_filter: keep only deleterious variants, such as
+        truncations or stop codon loss or start codon loss.
+
+    *uncertain:* amino acid sequence modifying mutations that are not most
+    likely deleterious. This includes missense mutations and in-frame insertions
+    and deletions.
+
+    - position_filter: all positions retained (no restrictions by position).
+    - variant_filter: all variants retained (no restrictions by variant).
+    - transcript_filter: keep only amino acid sequence modifying variants that
+        are not most likely deleterious. This includes missense mutations and
+        in-frame insertions and deletions.
 
     Args:
         cosmic_threshold: for "gof" genes, this is the "hotspot threshold" for
@@ -1503,13 +1588,12 @@ def get_default_mutation_classification_rules(cosmic_threshold=10):
             mutation is called "uncertain".
 
     Returns:
-        A dictionary with mutation classification rules
+        default mutation classification rules.
 
     Examples:
         >>> import icaparser as icap
         >>> icap.get_default_mutation_classification_rules()
         >>> icap.get_default_mutation_classification_rules(cosmic_threshold=20)
-
     """
     classification_rules = {
         "gof": {
@@ -1564,48 +1648,53 @@ def get_default_mutation_classification_rules(cosmic_threshold=10):
 
 
 def apply_mutation_classification_rules(
-    positions,
-    rule_set=get_default_mutation_classification_rules(),
-    gene_type_map=get_default_gene_type_map(),
-    hide_progress=False,
-):
+    positions: list,
+    rule_set: dict = get_default_mutation_classification_rules(),
+    gene_type_map: dict = get_default_gene_type_map(),
+    hide_progress: bool = False,
+) -> tuple[list, dict]:
     """Applies mutation classification rules to all positions.
 
-    Each mutation is categorized for each isoform that overlaps with the genomic
-    position of the mutation. Each transcript which passed the "mutated" or
-    "uncertain" rule of the classification rules gets a new attribute
-    `mutation_status` with the value "mutated" or "uncertain".
+    Each variant is categorized for each transcript that overlaps with the
+    genomic position of the variant. Each transcript that passes the "mutated"
+    or "uncertain" mutation classification rules gets a new attribute
+    `mutation_status` with the value "mutated" or "uncertain". The input list of
+    positions is modified by adding the `mutation_status` attribute to
+    transcripts, and the modified list of positions is returned as the first
+    element of the returned tuple.
 
-    In addition to classifying mutations based on their impact on transcript
-    isoforms, this function also assembles the mutation status on sample and
-    gene level without further aggregation. The impact depends on the type of
-    gene ("gof" or "lof"), so the impacts are assembled separately for each gene
-    type:
-
-    `sample_id` → `gene` → `gene_type` → `variant_id` → `mutationStatus`
+    In addition to modifying and returning the list of positions, this function
+    also returns the assembled mutation status after aggregating the impact on
+    all transcripts covering a variant. This is returned as the second item of
+    the returned tuple. The impact depends on the type of gene ("gof" or "lof"),
+    so the impacts are assembled separately for each gene type.
 
     The impact of a particular mutational variant can be different for different
     overlapping transcript variants of a gene, and the transcript variants can
     also belong to different genes. The strongest impact on any overlapping
-    transcript of a gene is defined as the impact of that mutational
-    variant on the gene. The analyst must decide which isoforms are used to
-    classify genes. For example, only canonical transcripts may be considered.
-    Alternatively, all transcripts or a subset of transcripts may be used.
-    Therefore, it is necessary to first apply transcript-level filters to all
-    genomic positions  before determining the mutation status of genes.
+    transcript of a gene is defined as the impact of that mutational variant on
+    the gene. The analyst must decide which isoforms are used to classify genes.
+    For example, only canonical transcripts may be considered. Alternatively,
+    all transcripts or a subset of transcripts may be used. Therefore, it is
+    necessary to first apply transcript-level filters to all genomic positions
+    before this function is called for determining the mutation status of genes.
+
+    The returned value is a multi-dimensional dictionary:
+
+    `sample_id` → `gene` → `gene_type` → `variant_id` → `mutationStatus`
 
     Args:
-        positions: list of positions
-        rule_set: rules for classifying "gof" and "lof" genes. See also
-            `get_default_mutation_classification_rules()` for an example
-            if the default rule set needs to be modified.
+        positions: list of positions.
+
+        rule_set: rules for classifying "gof" and "lof" genes. See the default
+            value for an example if a custom rule set is needed.
         gene_type_map: dictionary for mapping gene types to canonical gene
-            types. See also `get_default_gene_type_map()` for an example
-            if the default mapping table needs to be modified.
+            types. See the default value for an example if a custom rule set is
+            needed.
 
     Returns:
         A list of positions and a dictionary with assembled and aggregated
-        mutations
+            mutations.
 
     Examples:
         >>> import icaparser as icap
@@ -1668,49 +1757,58 @@ def apply_mutation_classification_rules(
     return positions, sample_muts
 
 
-def get_default_mutation_aggregation_rules():
+def get_default_mutation_aggregation_rules() -> dict:
     """Returns the default mutation aggregation rules.
 
-    Two types of the mutation status of a gene are introduced - allele level and
-    gene level:
+    Two types of the mutation status of a gene are defined - allele
+    level and gene level:
 
-    - For "gof" genes (like oncogenes) it is sufficient if one of the alleles of
-        one of the relevant isoforms has an activating mutation.
-    - For "lof" genes (like tumor suppressor genes) all alleles of all relevant
-        isoforms need to be functionally disrupted, either by mutations or by
-        other means.
-    - For Mixed and Other genes, the impact of a mutation is defined as the
-        highest impact according to "gof" rules and "lof" rules.
+    - For _gof_ genes (like oncogenes) it is sufficient that one of the
+      alleles of one of the relevant isoforms has an activating mutation.
+    - For _lof_ genes (like tumor suppressor genes) all alleles of all
+      relevant isoforms need to be functionally disrupted, either by mutations
+      or by other means.
+    - For _ambiguous_ or _other_ genes, the impact of a mutation is defined as
+      the highest impact according to _gof_ rules and _lof_ rules.
 
-    For "gof" genes, the allele and gene level classifications are identical
-    unless there is additional information about activating modifications other
-    than mutations. For "lof" genes, allele and gene level classifications
-    may be different. For example, a truncating mutation of a tumor suppressor
-    gene is functionally disruptive for the affected allele. However, there may
-    be other functionally active alleles of the same gene, i.e., the gene itself
-    may still be active. All alleles of such a gene must be dysfunctional,
-    either by additional mutations or by other processes, such as copy number
-    deletions or hypermethylation. Therefore, a single variant that is
-    disruptive at the allele level is not necessarily also disruptive at the
-    gene level. For "lof" genes, we usually do not have enough information
-    for a reliable estimation of functional effects. Instead, some heuristic
-    ules must be applied, and the analyst must decide whether to work with
-    allele-level or gene-level classifications. We designate a "lof" gene as
-    functionally disrupted (strong impact) if it has at least two mutations with
-    either strong impact or uncertain impact. If a "lof" gene has only one of
-    these mutations, it is designated as uncertain impact at the gene level,
-    even if one of these mutations has a strong impact at the allele level. By
-    categorizing effects at both allele and gene levels, we retain the
-    flexibility to decide in downstream analyses how to merge some of these
-    categories for subsequent statistical calculations.
+    For _gain of function_ (_gof_) genes, the classifications at both the allele
+    and gene levels are identical unless there is supplementary information
+    about activating modifications beyond mutations. In contrast, for _loss of
+    function_ (_lof_) genes, classifications at the allele and gene levels may
+    diverge. For instance, a truncating mutation in a tumor suppressor gene
+    typically disrupts the function of the affected allele. However, other
+    alleles of the same gene may remain functionally active, meaning the gene as
+    a whole can still be operational, unless the mutated allele is a dominant
+    negative variant. For a gene to be considered completely dysfunctional, all
+    its alleles must be impaired, either through additional mutations or other
+    mechanisms such as copy number deletions or hypermethylation. Consequently,
+    a single variant that disrupts function at the allele level does not
+    necessarily imply disruption at the gene level.
 
-    Additional filters based on publications, white lists and black lists for
-    mutations can be applied. These are not part of the first version and will
-    be added later. White and black lists can be based, for example, on ClinVar
-    and on the publication by Hess et al. (2019).
+    For _loss of function_ (_lof_) genes, the available information often falls
+    short of allowing a reliable estimation of functional effects. As a result,
+    heuristic rules must be employed, and the analyst is tasked with deciding
+    whether to utilize allele-level or gene-level classifications. A _lof_ gene
+    is classified as functionally disrupted at gene level (strong impact) if it
+    harbors at least two mutations, each either of strong impact or of uncertain
+    impact. Should a _lof_ gene possess only one such mutation, it is classified
+    as having an uncertain impact at the gene level, regardless of whether the
+    mutation exhibits a strong impact at the allele level. By differentiating
+    the effects at both the allele and gene levels, we maintain the flexibility
+    to determine in subsequent analyses how to consolidate these categories for
+    further statistical evaluations.
+
+    The function returns a dictionary containing two keys: _gof_ and
+    _lof_. Associated with each key is a function that accepts a
+    dictionary of counts as its input and outputs a tuple comprising two
+    elements: the mutation status at the allele level and at the gene
+    level. The input dictionary of counts is expected to have two keys,
+    _mutated_ and _uncertain_. The value for each key represents the
+    number of variants within a gene classified as _mutated_ or
+    _uncertain_, respectively.
 
     Returns:
-        A dictionary
+        the _gof_ and _lof_ allele level and gene level aggregation rules.
 
     Examples:
         >>> import icaparser as icap
@@ -1752,21 +1850,21 @@ def get_default_mutation_aggregation_rules():
 
 
 def get_aggregated_mutation_table(
-    positions,
-    sample_muts=None,
-    mutation_classification_rules=get_default_mutation_classification_rules(),
-    mutation_aggregation_rules=get_default_mutation_aggregation_rules(),
-    gene_type_map=get_default_gene_type_map(),
-    hide_progress=False,
-):
+    positions: list,
+    sample_muts: dict = None,
+    mutation_classification_rules: dict = get_default_mutation_classification_rules(),
+    mutation_aggregation_rules: dict = get_default_mutation_aggregation_rules(),
+    gene_type_map: dict = get_default_gene_type_map(),
+    hide_progress: bool = False,
+) -> pd.DataFrame:
     """Returns a sample-gene-mutationStatus table.
 
     This function applies mutation classification rules to all mutational
     variants and aggregates the mutations according to the aggregation rules.
     This results in a table with one row for each sample-gene pair. The table
-    contains several columns with impacts for "lof" and "gof" on allele level
-    and gene level and with one additional column with the maximum impact for
-    both allele and gene level.
+    contains several columns with impacts according to _lof_ and _gof_ rules on
+    allele level and gene level and with one additional column with the maximum
+    impact for both allele and gene level.
 
     Args:
         positions: list of positions. If sample_muts is also specified, it is
@@ -1774,13 +1872,14 @@ def get_aggregated_mutation_table(
             `apply_mutation_classification_rules` and we do not have to run
             mutation classification again.
         sample_muts: if `apply_mutation_classification_rules` has been run
-            before, you can use the second return value of that function as
-            the sample_muts argument. This is helpful for very large datasets
-            because otherwise `apply_mutation_classification_rules` will be
-            run again as an internal call within `get_aggregated_mutation_table`,
+            before, you can use the second return value of that function as the
+            sample_muts argument. This is helpful for very large datasets
+            because otherwise `apply_mutation_classification_rules` will be run
+            again as an internal call within `get_aggregated_mutation_table`,
             which is time consuming for very large data sets. This also means
-            that if `sample_muts` are specified, the `mutation_classification_rules`
-            argument is ignored and has no effect.
+            that if `sample_muts` is provided as an argument, the
+            `mutation_classification_rules` argument is ignored and has no
+            effect.
         mutation_classification_rules: rules for classifying single mutations.
             See `get_default_mutation_classification_rules()` for details.
         mutation_aggregation_rules: rules for aggregation mutations.
@@ -1789,7 +1888,7 @@ def get_aggregated_mutation_table(
             See `get_default_gene_type_map()` for details.
 
     Returns:
-        A pandas.DataFrame with the mutation table.
+        mutation table.
     """
     gene_type_cache = {}
     for p in positions:
@@ -1897,8 +1996,8 @@ def get_aggregated_mutation_table(
     return agg_mutation_table
 
 
-def split_multi_sample_json_file(json_file, output_dir):
-    """Splits a multi-sample JSON file into sample specifc JSON files.
+def split_multi_sample_json_file(json_file: str, output_dir: str) -> None:
+    """Splits a multi-sample JSON file into sample specific JSON files.
 
     This function reads a multi-sample JSON file that was generated by
     annotating a multi-sample VCF file with ICA and splits it into
@@ -1914,12 +2013,12 @@ def split_multi_sample_json_file(json_file, output_dir):
     JSON files are required for the rest of this package.
 
     Args:
-        json_file: the multi-sample json input file
+        json_file: the multi-sample json input file.
         output_dir: the directory where to write the single sample JSON files.
             The directory will be created if it does not exist.
 
     Returns:
-        Nothing
+        None.
     """
     os.makedirs(output_dir, exist_ok=True)
     is_header_line = True

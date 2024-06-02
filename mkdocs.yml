@@ -1,4 +1,4 @@
-site_name: GENIE Python Module Documentation
+site_name: ICAPARSER Python Module Documentation
 
 theme:
   name: "material"
