@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="icaparser",
-    version="0.2.8",
+    version="0.2.9",
     url="https://github.com/Bayer-Group/ica-parser",
     author="Henrik Seidel",
     author_email="heseber+github@mailbox.org",

@@ -7,13 +7,13 @@ install the icaparser package in that environment. Activate the environment and
 run:
 
 ```sh
-pip install "git+https://github.com/Bayer-Group/ica-parser.git#subdirectory=icaparser"
+pip install "git+https://github.com/Bayer-Group/ica-parser.git"
 ```
 
 If you want to install a particular development branch, use
 
 ```sh
-pip install "git+https://github.com/Bayer-Group/ica-parser.git@BRANCHNAME#subdirectory=icaparser"
+pip install "git+https://github.com/Bayer-Group/ica-parser.git@BRANCHNAME"
 ```
 
 If you use Jupyter notebooks, the virtual environment should be added as a new
