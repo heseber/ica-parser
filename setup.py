@@ -3,7 +3,7 @@ import setuptools
 setuptools.setup(
     name="icaparser",
     version="0.2.10",
-    url="https://github.com/Bayer-Group/ica-parser",
+    url="https://github.com/heseber/ica-parser",
     author="Henrik Seidel",
     author_email="heseber+github@mailbox.org",
     description="Parser for JSON files from Illumina Connected Annotations analysis pipeline",
