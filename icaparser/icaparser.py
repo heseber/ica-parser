@@ -786,7 +786,7 @@ def get_cosmic_max_sample_count(
     for cosmic_entry in variant.get("cosmic", []):
         if only_allele_specific and not cosmic_entry.get("isAlleleSpecific", False):
             continue
-        max_count = max(max_count, cosmic_entry.get("numSamples", 0))
+        max_count = max(max_count, cosmic_entry.get("sampleCount", 0))
     return max_count
 
 
@@ -1947,46 +1947,48 @@ def get_aggregated_mutation_table(
                 else ""
             )
             row = {
-                "sample_id": sample_id,
-                "gene": gene,
-                "geneType": gene_type,
-                "canonicalGeneType": canonical_gene_type,
-                "gof_mutated_count": (
+                "sample_id": [sample_id],
+                "gene": [gene],
+                "geneType": [gene_type],
+                "canonicalGeneType": [canonical_gene_type],
+                "gof_mutated_count": [
                     gene_mut_counts.get("gof", {}).get("mutated", 0)
                     if ({"gof", ""} & canonical_gene_type)
                     else np.NaN
-                ),
-                "gof_uncertain_count": (
+                ],
+                "gof_uncertain_count": [
                     gene_mut_counts.get("gof", {}).get("uncertain", 0)
                     if ({"gof", ""} & canonical_gene_type)
                     else np.NaN
-                ),
-                "lof_mutated_count": (
+                ],
+                "lof_mutated_count": [
                     gene_mut_counts.get("lof", {}).get("mutated", 0)
                     if ({"lof", ""} & canonical_gene_type)
                     else np.NaN
-                ),
-                "lof_uncertain_count": (
+                ],
+                "lof_uncertain_count": [
                     gene_mut_counts.get("lof", {}).get("uncertain", 0)
                     if ({"lof", ""} & canonical_gene_type)
                     else np.NaN
-                ),
-                "gof_allele_status": gof_allele_status,
-                "lof_allele_status": lof_allele_status,
-                "gof_gene_status": gof_gene_status,
-                "lof_gene_status": lof_gene_status,
-                "allele_status": get_max_mut_status(
-                    (gof_allele_status, lof_allele_status)
-                ),
-                "gene_status": get_max_mut_status((gof_gene_status, lof_gene_status)),
-                "gene_or_allele_status": get_max_mut_status(
-                    (
-                        gof_allele_status,
-                        lof_allele_status,
-                        gof_gene_status,
-                        lof_gene_status,
+                ],
+                "gof_allele_status": [gof_allele_status],
+                "lof_allele_status": [lof_allele_status],
+                "gof_gene_status": [gof_gene_status],
+                "lof_gene_status": [lof_gene_status],
+                "allele_status": [
+                    get_max_mut_status((gof_allele_status, lof_allele_status))
+                ],
+                "gene_status": [get_max_mut_status((gof_gene_status, lof_gene_status))],
+                "gene_or_allele_status": [
+                    get_max_mut_status(
+                        (
+                            gof_allele_status,
+                            lof_allele_status,
+                            gof_gene_status,
+                            lof_gene_status,
+                        )
                     )
-                ),
+                ],
             }
             rows.append(row)
     agg_mutation_table = pd.DataFrame(rows)

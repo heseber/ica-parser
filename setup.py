@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="icaparser",
-    version="0.2.12",
+    version="0.2.13",
     url="https://github.com/heseber/ica-parser",
     author="Henrik Seidel",
     author_email="heseber+github@mailbox.org",
