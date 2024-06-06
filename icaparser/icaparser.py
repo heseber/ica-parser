@@ -305,6 +305,7 @@ def strip_json_file(ifname: str, ofname: str) -> None:
         raise ValueError("ifname and ofname must be different")
     odname = os.path.dirname(ofname)
     os.makedirs(odname, exist_ok=True)
+    header = ""
     is_header_line = True
     is_position_line = False
     is_first_position_line = False
@@ -683,7 +684,7 @@ def get_max_af(variant: dict, source: str, cohorts: list = None) -> float:
         >>> import icaparser as icap
         >>> icap.get_max_af(variant, 'gnomad')
     """
-    if source not in variant:
+    if not source in variant:
         return 0
     max_af = 0
     for k, v in variant[source].items():
@@ -747,19 +748,28 @@ def get_onekg_max_af(variant: dict) -> float:
 
 
 def get_cosmic_max_sample_count(
-    variant: dict, only_allele_specific: bool = True
+    variant: dict, only_fully_annotated: bool = False, only_allele_specific: bool = True
 ) -> int:
     """Get the maximum sample count for all Cosmic annotations of a variant.
 
     A variant can have no, one or multiple associated Cosmic identifiers. This
-    function returns the maximum sample count of all Cosmic identifiers. For
-    each Cosmic identifier, sample numbers are summed up across all indications.
+    function returns the maximum sample count of all Cosmic identifers. For each
+    Cosmic identifiers, sample numbers are summed up across all indications.
     Returns 0 if no Cosmic identifier exists for this variant.
+
+    The 'only_fully_annotated' argument can be used to exclude Cosmic entries
+    that have no 'cancerTypesAndCounts' annotation. If, for example, the Cosmic
+    VCF file used by Nirvana contained all Cosmic variants, but the Cosmic TSV
+    file used by Nirvana contained only Cancer Census variants, then a variant
+    that is in the VCF but not the TSV will have a simply annotation without
+    'cancerTypesAndCounts', 'cancerSitesAndCounts', 'tiersAndCounts'. So when
+    setting 'only_fully_annotated' to True, only samples having a mutation from
+    the Cancer Census will be counted.
 
     The 'only_allele_specific' argument is used to exclude Cosmic entries that
     annotate the same chromosomal location but an allele that is different from
-    the allele of the annotated variant. ICA annotates a variant with all Cosmic
-    entries for that chromosomal location, irrespective of alleles. When
+    the allele of the annotated variant. Nirvana annotates a variant with all
+    Cosmic entries for that chromosomal location, irrespective of alleles. When
     counting Cosmic samples, this leads to an overestimation of Cosmic sample
     counts for a particular variant. Therefore, 'only_allele_specific' is True
     by default to count only samples from Cosmic entries with matching alleles.
@@ -767,15 +777,17 @@ def get_cosmic_max_sample_count(
     at a given position, irrespective of allele. For example, several different
     alleles at a functional site of a gene can lead to function-disrupting
     mutations, so we want to get the maximum sample count for any allele at that
-    position. One might also think of adding the sample counts for all Cosmic
-    entries annotating a variant, but this does not work  due to redundancy of
-    Cosmic entries. Older Cosmic versions often included the same sample in
-    different Cosmic entries. And newer Cosmic versions often have multiple
-    entries for an allele, one for each transcript variant, with the same
-    underlying samples.
+    position. One might also think of adding the samnple counts for all Cosmic
+    entries annotating a variant, but this does not work currently due to
+    redundancy of Cosmic entries. Older Cosmic versions often included the same
+    sample in different Cosmic entries. And newer Cosmic versions often have
+    multiple entries for an allele, one for each transcript variant, with the
+    same underlying samples.
 
     Args:
         variant:              the variant to investigate
+        only_fully_annotated: consider only consmic entries which are fully
+                              annotated, i.e. which have 'cancerTypesAndCounts'
         only_allele_specific: consider only cosmic entries with alleles
                               matching the allele of the annotated variant
 
@@ -784,10 +796,47 @@ def get_cosmic_max_sample_count(
     """
     max_count = 0
     for cosmic_entry in variant.get("cosmic", []):
+        if only_fully_annotated and "cancerTypesAndCounts" not in cosmic_entry:
+            continue
         if only_allele_specific and not cosmic_entry.get("isAlleleSpecific", False):
             continue
-        max_count = max(max_count, cosmic_entry.get("numSamples", 0))
+        max_count = max(max_count, cosmic_entry.get("sampleCount", 0))
     return max_count
+
+
+def get_cosmic_cancer_gene_census_tier(variant):
+    """Get the highest Cosmic Cancer Gene Census tier of a variant.
+
+    A variant can have no, one or multiple associated Cosmic identifiers.
+    This function returns the highest 'tier' for all of the Cosmic Cancer
+    Gene Census entries for a variant. There are two tiers, '1', and '2'.
+    Tier '1' is assigned to genes with documented activity relevant to cancer,
+    and tier '2' is assigned to genes with strong indications of a role in
+    cancer but with less extensive available evidence.
+
+    It is important to understand that this is the tier for a gene, not for a
+    particular variant, so it must not be mistaken with the Cosmic Cancer
+    Mutation Census tiers.
+
+    See https://cancer.sanger.ac.uk/census for a detailed description of tiers.
+
+    Args:
+        variant:    the variant to investigate
+
+    Returns:
+        An integer
+    """
+    best_tier = pd.NA
+    for cosmic_entry in variant.get("cosmic", []):
+        if not cosmic_entry.get("isAlleleSpecific", False):
+            continue
+        for tier_entry in cosmic_entry.get("tiersAndCounts", []):
+            tier = int(tier_entry["tier"])
+            if best_tier is pd.NA:
+                best_tier = tier
+            else:
+                best_tier = min(tier, best_tier)
+    return best_tier
 
 
 def get_clinvar_max_significance(
@@ -1166,7 +1215,7 @@ def get_mutation_table_for_position(position: dict) -> pd.DataFrame:
     """
     vep_csq_categories = list(vep_csq.index)
     vep_csq_categories.reverse()
-    rows = []
+    df = pd.DataFrame()
     for variant_idx, variant in enumerate(position["variants"]):
         # Get the variant frequency for this variant
         variant_frequencies = position["samples"][0].get("variantFrequencies", [])
@@ -1176,44 +1225,46 @@ def get_mutation_table_for_position(position: dict) -> pd.DataFrame:
             variant_frequency = np.nan
         # Create the table rows
         for transcript in variant["transcripts"]:
-            row = {
-                "sample": position["samples"][0]["sampleId"],
-                "chromosome": position["chromosome"],
-                "position": position["position"],
-                "genotype": position.get("samples")[0].get("genotype"),
-                "variantFrequency": variant_frequency,
-                "hgnc": transcript.get("hgnc", ""),
-                "source": transcript.get("source", ""),
-                "geneId": transcript.get("geneId", ""),
-                "transcriptId": transcript.get("transcript", ""),
-                "proteinId": transcript.get("proteinId", ""),
-                "hgvsc": transcript.get("hgvsc", ""),
-                "hgvsp": transcript.get("hgvsp", ""),
-                "isCanonical": transcript.get("isCanonical", False),
-                "vid": variant["vid"],
-                "hgvsg": variant.get("hgvsg", pd.NA),
-                "begin": variant["begin"],
-                "end": variant["end"],
-                "refAllele": variant["refAllele"],
-                "altAllele": variant["altAllele"],
-                "variantType": variant["variantType"],
-                "bioType": transcript.get("bioType", ""),
-                "geneType": transcript.get("geneType", ""),
-                "mutationStatus": transcript.get("mutationStatus", ""),
-                "codons": transcript.get("codons", ""),
-                "aminoAcids": transcript.get("aminoAcids", ""),
-                "cdnaPos": transcript.get("cdnaPos", ""),
-                "cdsPos": transcript.get("cdsPos", ""),
-                "exons": transcript.get("exons", ""),
-                "proteinPos": transcript.get("proteinPos", ""),
-                "consequence": transcript.get("consequence", []),
-                "cosmicSampleCount": get_cosmic_max_sample_count(variant),
-                "maxGnomadAf": get_gnomad_max_af(variant),
-                "maxGnomadExomeAf": get_gnomad_exome_max_af(variant),
-                "maxOneKG": get_onekg_max_af(variant),
-            }
-            rows.append(row)
-    df = pd.DataFrame(rows)
+            row = pd.DataFrame.from_dict(
+                {
+                    "sample": [position["samples"][0]["sampleId"]],
+                    "chromosome": [position["chromosome"]],
+                    "position": [position["position"]],
+                    "genotype": [position.get("samples")[0].get("genotype")],
+                    "variantFrequency": [variant_frequency],
+                    "hgnc": [transcript.get("hgnc", "")],
+                    "source": [transcript.get("source", "")],
+                    "geneId": [transcript.get("geneId", "")],
+                    "transcriptId": [transcript.get("transcript", "")],
+                    "proteinId": [transcript.get("proteinId", "")],
+                    "hgvsg": [variant.get("hgvsg", "")],
+                    "hgvsc": [transcript.get("hgvsc", "")],
+                    "hgvsp": [transcript.get("hgvsp", "")],
+                    "isCanonical": [transcript.get("isCanonical", False)],
+                    "vid": [variant["vid"]],
+                    "begin": [variant["begin"]],
+                    "end": [variant["end"]],
+                    "refAllele": [variant["refAllele"]],
+                    "altAllele": [variant["altAllele"]],
+                    "variantType": [variant["variantType"]],
+                    "bioType": [transcript.get("bioType", "")],
+                    "geneType": [transcript.get("geneType", "")],
+                    "mutationStatus": [transcript.get("mutationStatus", "")],
+                    "codons": [transcript.get("codons", "")],
+                    "aminoAcids": [transcript.get("aminoAcids", "")],
+                    "cdnaPos": [transcript.get("cdnaPos", "")],
+                    "cdsPos": [transcript.get("cdsPos", "")],
+                    "exons": [transcript.get("exons", "")],
+                    "proteinPos": [transcript.get("proteinPos", "")],
+                    "consequence": [transcript.get("consequence", [])],
+                    "cosmicSampleCount": [get_cosmic_max_sample_count(variant)],
+                    "cosmicGeneTier": [get_cosmic_cancer_gene_census_tier(variant)],
+                    "maxGnomadAf": [get_gnomad_max_af(variant)],
+                    "maxGnomadExomeAf": [get_gnomad_exome_max_af(variant)],
+                    "maxOneKG": [get_onekg_max_af(variant)],
+                }
+            )
+            df = pd.concat([df, row], ignore_index=True)
     return df
 
 
@@ -1318,7 +1369,7 @@ def _get_mutation_table_for_single_file(
     )
     # Keep only protein coding variants
     positions = filter_positions_by_transcripts(
-        positions, lambda x: x.get("bioType", "") in ["protein_coding", "mRNA"]
+        positions, lambda x: x.get("bioType", "") == "protein_coding"
     )
     # Keep only variants with high enough VEP impact
     positions = filter_positions_by_transcripts(
@@ -1851,7 +1902,6 @@ def get_default_mutation_aggregation_rules() -> dict:
 
 def get_aggregated_mutation_table(
     positions: list,
-    sample_muts: dict = None,
     mutation_classification_rules: dict = get_default_mutation_classification_rules(),
     mutation_aggregation_rules: dict = get_default_mutation_aggregation_rules(),
     gene_type_map: dict = get_default_gene_type_map(),
@@ -1867,19 +1917,7 @@ def get_aggregated_mutation_table(
     impact for both allele and gene level.
 
     Args:
-        positions: list of positions. If sample_muts is also specified, it is
-            assumed that the positions have already been processed previously by
-            `apply_mutation_classification_rules` and we do not have to run
-            mutation classification again.
-        sample_muts: if `apply_mutation_classification_rules` has been run
-            before, you can use the second return value of that function as the
-            sample_muts argument. This is helpful for very large datasets
-            because otherwise `apply_mutation_classification_rules` will be run
-            again as an internal call within `get_aggregated_mutation_table`,
-            which is time consuming for very large data sets. This also means
-            that if `sample_muts` is provided as an argument, the
-            `mutation_classification_rules` argument is ignored and has no
-            effect.
+        positions: list of positions.
         mutation_classification_rules: rules for classifying single mutations.
             See `get_default_mutation_classification_rules()` for details.
         mutation_aggregation_rules: rules for aggregation mutations.
@@ -1904,14 +1942,13 @@ def get_aggregated_mutation_table(
         else:
             return "not_mutated"
 
-    if sample_muts is None:
-        p, sample_muts = apply_mutation_classification_rules(
-            positions,
-            rule_set=mutation_classification_rules,
-            gene_type_map=gene_type_map,
-            hide_progress=hide_progress,
-        )
-    rows = []
+    p, sample_muts = apply_mutation_classification_rules(
+        positions,
+        rule_set=mutation_classification_rules,
+        gene_type_map=gene_type_map,
+        hide_progress=hide_progress,
+    )
+    agg_mutation_table = pd.DataFrame()
     for sample_id, gene_muts in tqdm(
         sample_muts.items(), disable=hide_progress, desc="Samples"
     ):
@@ -1946,50 +1983,55 @@ def get_aggregated_mutation_table(
                 if "lof" in gene_mut_counts
                 else ""
             )
-            row = {
-                "sample_id": sample_id,
-                "gene": gene,
-                "geneType": gene_type,
-                "canonicalGeneType": canonical_gene_type,
-                "gof_mutated_count": (
-                    gene_mut_counts.get("gof", {}).get("mutated", 0)
-                    if ({"gof", ""} & canonical_gene_type)
-                    else np.NaN
-                ),
-                "gof_uncertain_count": (
-                    gene_mut_counts.get("gof", {}).get("uncertain", 0)
-                    if ({"gof", ""} & canonical_gene_type)
-                    else np.NaN
-                ),
-                "lof_mutated_count": (
-                    gene_mut_counts.get("lof", {}).get("mutated", 0)
-                    if ({"lof", ""} & canonical_gene_type)
-                    else np.NaN
-                ),
-                "lof_uncertain_count": (
-                    gene_mut_counts.get("lof", {}).get("uncertain", 0)
-                    if ({"lof", ""} & canonical_gene_type)
-                    else np.NaN
-                ),
-                "gof_allele_status": gof_allele_status,
-                "lof_allele_status": lof_allele_status,
-                "gof_gene_status": gof_gene_status,
-                "lof_gene_status": lof_gene_status,
-                "allele_status": get_max_mut_status(
-                    (gof_allele_status, lof_allele_status)
-                ),
-                "gene_status": get_max_mut_status((gof_gene_status, lof_gene_status)),
-                "gene_or_allele_status": get_max_mut_status(
-                    (
-                        gof_allele_status,
-                        lof_allele_status,
-                        gof_gene_status,
-                        lof_gene_status,
-                    )
-                ),
-            }
-            rows.append(row)
-    agg_mutation_table = pd.DataFrame(rows)
+            row = pd.DataFrame.from_dict(
+                {
+                    "sample_id": [sample_id],
+                    "gene": [gene],
+                    "geneType": [gene_type],
+                    "canonicalGeneType": [canonical_gene_type],
+                    "gof_mutated_count": [
+                        gene_mut_counts.get("gof", {}).get("mutated", 0)
+                        if ({"gof", ""} & canonical_gene_type)
+                        else np.NaN
+                    ],
+                    "gof_uncertain_count": [
+                        gene_mut_counts.get("gof", {}).get("uncertain", 0)
+                        if ({"gof", ""} & canonical_gene_type)
+                        else np.NaN
+                    ],
+                    "lof_mutated_count": [
+                        gene_mut_counts.get("lof", {}).get("mutated", 0)
+                        if ({"lof", ""} & canonical_gene_type)
+                        else np.NaN
+                    ],
+                    "lof_uncertain_count": [
+                        gene_mut_counts.get("lof", {}).get("uncertain", 0)
+                        if ({"lof", ""} & canonical_gene_type)
+                        else np.NaN
+                    ],
+                    "gof_allele_status": [gof_allele_status],
+                    "lof_allele_status": [lof_allele_status],
+                    "gof_gene_status": [gof_gene_status],
+                    "lof_gene_status": [lof_gene_status],
+                    "allele_status": [
+                        get_max_mut_status((gof_allele_status, lof_allele_status))
+                    ],
+                    "gene_status": [
+                        get_max_mut_status((gof_gene_status, lof_gene_status))
+                    ],
+                    "gene_or_allele_status": [
+                        get_max_mut_status(
+                            (
+                                gof_allele_status,
+                                lof_allele_status,
+                                gof_gene_status,
+                                lof_gene_status,
+                            )
+                        )
+                    ],
+                }
+            )
+            agg_mutation_table = pd.concat([agg_mutation_table, row], ignore_index=True)
     count_cols = [x for x in agg_mutation_table.columns if "count" in x]
     for col in count_cols:
         agg_mutation_table[col] = agg_mutation_table[col].astype(pd.Int64Dtype())
