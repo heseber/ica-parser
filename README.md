@@ -1,5 +1,7 @@
 # Parser for Illumina Connected Annotations JSON files
 
+original author of this package: Henrik Seidel (heseber)
+
 ## Introduction
 
 Illumina's _Illumina Connected Annotations_ (previous name: _Nirvana_) is a fast annotation tool for genomic alternations (VCF files) with similar functionality as the Variant Effect Predictor (VEP) or SnpEff.
