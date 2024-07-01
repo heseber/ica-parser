@@ -1,6 +1,6 @@
 # Parser for Illumina Connected Annotations JSON files
 
-original author of this package: Henrik Seidel (heseber)
+**Original author of this package: Henrik Seidel (heseber)**
 
 ## Introduction
 
